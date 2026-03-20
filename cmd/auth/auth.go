@@ -1,0 +1,408 @@
+package auth
+
+import (
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/crowdy/lm-cli/cmd/cmdutil"
+	"github.com/crowdy/lm-cli/internal/api"
+	"github.com/crowdy/lm-cli/internal/config"
+	lmerrors "github.com/crowdy/lm-cli/internal/errors"
+	"github.com/crowdy/lm-cli/internal/prompt"
+)
+
+// Cmd is the auth command group.
+var Cmd = &cobra.Command{
+	Use:   "auth",
+	Short: "Manage authentication",
+}
+
+func init() {
+	loginCmd.Flags().StringP("type", "t", "longterm", "token type: longterm, stateless")
+	Cmd.AddCommand(loginCmd)
+	Cmd.AddCommand(logoutCmd)
+	Cmd.AddCommand(statusCmd)
+	Cmd.AddCommand(listCmd)
+	Cmd.AddCommand(switchCmd)
+	Cmd.AddCommand(tokenCmd)
+	Cmd.AddCommand(removeCmd)
+}
+
+var loginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Configure authentication for a profile",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		tokenType, _ := cmd.Flags().GetString("type")
+		profileName := getProfileFlag(cmd)
+
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		switch tokenType {
+		case "longterm":
+			return loginLongterm(profileName, cfg)
+		case "stateless":
+			return loginStateless(profileName, cfg)
+		default:
+			return &lmerrors.ValidationError{
+				Field:   "type",
+				Message: fmt.Sprintf("unknown token type %q (use: longterm, stateless)", tokenType),
+			}
+		}
+	},
+}
+
+func loginLongterm(profileName string, cfg *config.Config) error {
+	var err error
+
+	channelID := config.EnvOr(config.EnvChannelID, "")
+	if channelID == "" {
+		channelID, err = prompt.String("Channel ID")
+		if err != nil {
+			return err
+		}
+	}
+
+	token, err := prompt.Password("Long-term Channel Access Token")
+	if err != nil {
+		return err
+	}
+
+	// Save profile
+	if cfg.Profiles == nil {
+		cfg.Profiles = map[string]config.Profile{}
+	}
+	cfg.Profiles[profileName] = config.Profile{
+		ChannelID: channelID,
+		TokenType: "longterm",
+	}
+	if cfg.ActiveProfile == "" {
+		cfg.ActiveProfile = profileName
+	}
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+
+	// Save token (no expiry for longterm)
+	tokens, err := config.LoadTokens()
+	if err != nil {
+		return err
+	}
+	tokens.Set(profileName, config.TokenEntry{
+		Token:     token,
+		TokenType: "longterm",
+	})
+	if err := tokens.Save(); err != nil {
+		return fmt.Errorf("saving token: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "Logged in to profile %q with longterm token\n", profileName)
+	return nil
+}
+
+func loginStateless(profileName string, cfg *config.Config) error {
+	var err error
+
+	channelID := config.EnvOr(config.EnvChannelID, "")
+	if channelID == "" {
+		channelID, err = prompt.String("Channel ID")
+		if err != nil {
+			return err
+		}
+	}
+
+	secret := config.EnvOr(config.EnvSecret, "")
+	if secret == "" {
+		secret, err = prompt.Password("Channel Secret")
+		if err != nil {
+			return err
+		}
+	}
+
+	// Issue token immediately to verify credentials
+	fmt.Fprintln(os.Stderr, "Issuing stateless token...")
+	token, expiresAt, err := api.IssueStatelessToken(channelID, secret)
+	if err != nil {
+		return err
+	}
+
+	// Save profile
+	if cfg.Profiles == nil {
+		cfg.Profiles = map[string]config.Profile{}
+	}
+	cfg.Profiles[profileName] = config.Profile{
+		ChannelID: channelID,
+		TokenType: "stateless",
+	}
+	if cfg.ActiveProfile == "" {
+		cfg.ActiveProfile = profileName
+	}
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+
+	// Save credentials
+	creds, err := config.LoadCredentials()
+	if err != nil {
+		return err
+	}
+	creds.Set(profileName, config.Credentials{ChannelSecret: secret})
+	if err := creds.Save(); err != nil {
+		return fmt.Errorf("saving credentials: %w", err)
+	}
+
+	// Save token
+	tokens, err := config.LoadTokens()
+	if err != nil {
+		return err
+	}
+	tokens.Set(profileName, config.TokenEntry{
+		Token:     token,
+		ExpiresAt: expiresAt,
+		TokenType: "stateless",
+	})
+	if err := tokens.Save(); err != nil {
+		return fmt.Errorf("saving token: %w", err)
+	}
+
+	jst := time.FixedZone("JST", 9*60*60)
+	fmt.Fprintf(os.Stderr, "Logged in to profile %q (token expires %s / %s JST)\n",
+		profileName,
+		expiresAt.Format(time.RFC3339),
+		expiresAt.In(jst).Format("2006-01-02 15:04"))
+	return nil
+}
+
+var logoutCmd = &cobra.Command{
+	Use:   "logout",
+	Short: "Remove token and credentials for the active profile",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		profileName := getProfileFlag(cmd)
+
+		tokens, err := config.LoadTokens()
+		if err != nil {
+			return err
+		}
+		tokens.Delete(profileName)
+		if err := tokens.Save(); err != nil {
+			return err
+		}
+
+		creds, err := config.LoadCredentials()
+		if err != nil {
+			return err
+		}
+		creds.Delete(profileName)
+		if err := creds.Save(); err != nil {
+			return err
+		}
+
+		fmt.Fprintf(os.Stderr, "Logged out of profile %q\n", profileName)
+		return nil
+	},
+}
+
+var statusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show current authentication status",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		profileName := getProfileFlag(cmd)
+		profile, ok := cfg.Profiles[profileName]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Profile %q: not configured\n", profileName)
+			return &lmerrors.ConfigError{Message: fmt.Sprintf("profile %q not found", profileName)}
+		}
+
+		tokens, err := config.LoadTokens()
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Profile:    %s\n", profileName)
+		fmt.Printf("Channel ID: %s\n", profile.ChannelID)
+		fmt.Printf("Token Type: %s\n", profile.TokenType)
+
+		if entry, ok := tokens.Get(profileName); ok && entry.Token != "" {
+			if profile.TokenType == "longterm" || entry.ExpiresAt.IsZero() {
+				fmt.Printf("Token:      set (longterm, no expiry)\n")
+			} else {
+				jst := time.FixedZone("JST", 9*60*60)
+				remaining := time.Until(entry.ExpiresAt)
+				if remaining > 0 {
+					fmt.Printf("Token:      valid (expires in %s, %s JST)\n",
+						remaining.Truncate(time.Minute),
+						entry.ExpiresAt.In(jst).Format("2006-01-02 15:04"))
+				} else {
+					fmt.Printf("Token:      expired (%s ago, was %s JST)\n",
+						(-remaining).Truncate(time.Minute),
+						entry.ExpiresAt.In(jst).Format("2006-01-02 15:04"))
+				}
+			}
+		} else {
+			fmt.Printf("Token:      none\n")
+		}
+
+		return nil
+	},
+}
+
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all configured profiles",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		tokens, err := config.LoadTokens()
+		if err != nil {
+			return err
+		}
+
+		if len(cfg.Profiles) == 0 {
+			fmt.Fprintln(os.Stderr, "No profiles configured. Run 'lm auth login' to create one.")
+			return nil
+		}
+
+		for name, profile := range cfg.Profiles {
+			marker := " "
+			if name == cfg.ActiveProfile {
+				marker = "*"
+			}
+			tokenStatus := "no token"
+			if tokens.IsValid(name) {
+				tokenStatus = "authenticated"
+			} else if _, ok := tokens.Get(name); ok {
+				entry, _ := tokens.Get(name)
+				if entry.Token != "" {
+					tokenStatus = "expired"
+				}
+			}
+			fmt.Printf("%s %s\t%s\t%s\t%s\n", marker, name, profile.ChannelID, profile.TokenType, tokenStatus)
+		}
+		return nil
+	},
+}
+
+var switchCmd = &cobra.Command{
+	Use:   "switch <profile>",
+	Short: "Switch active profile",
+	Args:  cmdutil.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		if _, ok := cfg.Profiles[name]; !ok {
+			return &lmerrors.ConfigError{Message: fmt.Sprintf("profile %q not found", name)}
+		}
+
+		cfg.ActiveProfile = name
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+
+		fmt.Fprintf(os.Stderr, "Switched to profile %q\n", name)
+		return nil
+	},
+}
+
+var tokenCmd = &cobra.Command{
+	Use:   "token",
+	Short: "Print current token to stdout (for scripting)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		profileName := getProfileFlag(cmd)
+
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+
+		creds, err := config.LoadCredentials()
+		if err != nil {
+			return err
+		}
+
+		tokens, err := config.LoadTokens()
+		if err != nil {
+			return err
+		}
+
+		token, err := api.EnsureToken(profileName, cfg, creds, tokens)
+		if err != nil {
+			return err
+		}
+
+		fmt.Print(token)
+		return nil
+	},
+}
+
+var removeCmd = &cobra.Command{
+	Use:   "remove <profile>",
+	Short: "Completely remove a profile",
+	Args:  cmdutil.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		delete(cfg.Profiles, name)
+		if cfg.ActiveProfile == name {
+			cfg.ActiveProfile = ""
+			for k := range cfg.Profiles {
+				cfg.ActiveProfile = k
+				break
+			}
+		}
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+
+		creds, err := config.LoadCredentials()
+		if err != nil {
+			return err
+		}
+		creds.Delete(name)
+		_ = creds.Save()
+
+		tokens, err := config.LoadTokens()
+		if err != nil {
+			return err
+		}
+		tokens.Delete(name)
+		_ = tokens.Save()
+
+		fmt.Fprintf(os.Stderr, "Removed profile %q\n", name)
+		return nil
+	},
+}
+
+func getProfileFlag(cmd *cobra.Command) string {
+	if p, _ := cmd.Flags().GetString("profile"); p != "" {
+		return p
+	}
+	if p := config.EnvOr(config.EnvProfile, ""); p != "" {
+		return p
+	}
+	cfg, _ := config.Load()
+	if cfg != nil && cfg.ActiveProfile != "" {
+		return cfg.ActiveProfile
+	}
+	return "default"
+}
