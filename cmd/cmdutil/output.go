@@ -6,6 +6,12 @@ import (
 	"github.com/crowdy/lm-cli/internal/config"
 )
 
+// IsQuiet returns whether quiet mode is enabled, reading the persistent root flag.
+func IsQuiet(cmd *cobra.Command) bool {
+	quiet, _ := cmd.Root().PersistentFlags().GetBool("quiet")
+	return quiet
+}
+
 // GetFormat returns the output format from flags, env var, or config default.
 func GetFormat(cmd *cobra.Command) string {
 	format, _ := cmd.Flags().GetString("format")

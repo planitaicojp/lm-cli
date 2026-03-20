@@ -1,7 +1,7 @@
 package api
 
 import (
-	"fmt"
+	"net/url"
 
 	"github.com/crowdy/lm-cli/internal/model"
 )
@@ -12,24 +12,30 @@ type InsightAPI struct {
 }
 
 func (a *InsightAPI) GetFollowers(date string) (*model.FollowerStats, error) {
-	url := a.Client.BaseURL + "/v2/bot/insight/followers"
+	params := url.Values{}
 	if date != "" {
-		url += "?date=" + date
+		params.Set("date", date)
+	}
+	endpoint := a.Client.BaseURL + "/v2/bot/insight/followers"
+	if len(params) > 0 {
+		endpoint += "?" + params.Encode()
 	}
 	var resp model.FollowerStats
-	if err := a.Client.Get(url, &resp); err != nil {
+	if err := a.Client.Get(endpoint, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 func (a *InsightAPI) GetDelivery(msgType, date string) (*model.DeliveryStats, error) {
-	url := fmt.Sprintf("%s/v2/bot/insight/message/delivery?type=%s", a.Client.BaseURL, msgType)
+	params := url.Values{}
+	params.Set("type", msgType)
 	if date != "" {
-		url += "&date=" + date
+		params.Set("date", date)
 	}
+	endpoint := a.Client.BaseURL + "/v2/bot/insight/message/delivery?" + params.Encode()
 	var resp model.DeliveryStats
-	if err := a.Client.Get(url, &resp); err != nil {
+	if err := a.Client.Get(endpoint, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

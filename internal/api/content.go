@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	lmerrors "github.com/crowdy/lm-cli/internal/errors"
 )
 
 // ContentAPI provides LINE content download operations.
@@ -27,7 +29,7 @@ func (a *ContentAPI) Get(messageID string) (io.ReadCloser, error) {
 
 	resp, err := a.Client.HTTP.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, &lmerrors.NetworkError{Err: err}
 	}
 	if resp.StatusCode >= 400 {
 		resp.Body.Close()

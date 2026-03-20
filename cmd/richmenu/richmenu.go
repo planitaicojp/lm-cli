@@ -255,12 +255,11 @@ var aliasCreateCmd = &cobra.Command{
 		}
 
 		rmAPI := &api.RichMenuAPI{Client: client}
-		alias, err := rmAPI.CreateAlias(body)
-		if err != nil {
+		if err := rmAPI.CreateAlias(body); err != nil {
 			return err
 		}
 
-		fmt.Fprintf(os.Stderr, "Created alias: %s\n", alias.RichMenuAliasID)
+		fmt.Fprintln(os.Stderr, "Created rich menu alias")
 		return nil
 	},
 }
