@@ -8,7 +8,6 @@ import (
 
 	"github.com/crowdy/lm-cli/cmd/cmdutil"
 	"github.com/crowdy/lm-cli/internal/api"
-	lmerrors "github.com/crowdy/lm-cli/internal/errors"
 	"github.com/crowdy/lm-cli/internal/model"
 	"github.com/crowdy/lm-cli/internal/output"
 )
@@ -248,10 +247,6 @@ var aliasCreateCmd = &cobra.Command{
 		var body any
 		if err := api.ParseJSONFile(file, &body); err != nil {
 			return err
-		}
-
-		if file == "" {
-			return &lmerrors.ValidationError{Field: "file", Message: "required"}
 		}
 
 		rmAPI := &api.RichMenuAPI{Client: client}

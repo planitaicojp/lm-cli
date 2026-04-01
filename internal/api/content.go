@@ -32,7 +32,6 @@ func (a *ContentAPI) Get(messageID string) (io.ReadCloser, error) {
 		return nil, &lmerrors.NetworkError{Err: err}
 	}
 	if resp.StatusCode >= 400 {
-		resp.Body.Close()
 		return nil, parseAPIError(resp)
 	}
 	return resp.Body, nil

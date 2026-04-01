@@ -198,6 +198,10 @@ var replyCmd = &cobra.Command{
 			return err
 		}
 
+		if !cmdutil.IsQuiet(cmd) {
+			fmt.Fprintln(os.Stderr, "Note: reply token is valid for 30 seconds from the webhook event.")
+		}
+
 		msgAPI := &api.MessageAPI{Client: client}
 		resp, err := msgAPI.Reply(replyToken, messages)
 		if err != nil {
