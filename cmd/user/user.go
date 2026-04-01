@@ -73,9 +73,10 @@ var followersCmd = &cobra.Command{
 		userAPI := &api.UserAPI{Client: client}
 
 		if allFlag {
+			const maxPages = 10000
 			var allIDs []string
 			cursor := start
-			for {
+			for page := 0; page < maxPages; page++ {
 				resp, err := userAPI.GetFollowers(0, cursor)
 				if err != nil {
 					return err

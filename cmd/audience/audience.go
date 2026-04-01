@@ -9,6 +9,7 @@ import (
 
 	"github.com/crowdy/lm-cli/cmd/cmdutil"
 	"github.com/crowdy/lm-cli/internal/api"
+	lmerrors "github.com/crowdy/lm-cli/internal/errors"
 	"github.com/crowdy/lm-cli/internal/model"
 	"github.com/crowdy/lm-cli/internal/output"
 )
@@ -107,13 +108,17 @@ var listCmd = &cobra.Command{
 		allFlag, _ := cmd.Flags().GetBool("all")
 		page, _ := cmd.Flags().GetInt("page")
 
+		if allFlag && page > 0 {
+			return &lmerrors.ValidationError{Field: "flags", Message: "--all and --page cannot be used together"}
+		}
+
 		audienceAPI := &api.AudienceAPI{Client: client}
 
 		var allGroups []model.AudienceGroup
 
 		if allFlag {
-			p := 1
-			for {
+			const maxPages = 10000
+			for p := 1; p <= maxPages; p++ {
 				resp, err := audienceAPI.List(p)
 				if err != nil {
 					return err
@@ -122,7 +127,6 @@ var listCmd = &cobra.Command{
 				if !resp.HasNextPage {
 					break
 				}
-				p++
 				if !cmdutil.IsQuiet(cmd) {
 					fmt.Fprintf(os.Stderr, "Fetched %d audience groups...\r", len(allGroups))
 				}

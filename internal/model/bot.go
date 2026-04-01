@@ -40,6 +40,22 @@ type ConsumptionRow struct {
 	TotalUsage int `json:"total_usage"`
 }
 
+// StatusInfo is the JSON/YAML output for lm status.
+type StatusInfo struct {
+	API            string `json:"api"              yaml:"api"`
+	BotID          string `json:"bot_id"           yaml:"bot_id"`
+	DisplayName    string `json:"display_name"     yaml:"display_name"`
+	TokenType      string `json:"token_type"       yaml:"token_type"`
+	TokenExpiresAt string `json:"token_expires_at" yaml:"token_expires_at"`
+}
+
+// StatusRow is a flat representation for table output.
+type StatusRow struct {
+	API   string `json:"api"`
+	Bot   string `json:"bot"`
+	Token string `json:"token"`
+}
+
 // BotUsageRow combines quota and consumption for table output.
 type BotUsageRow struct {
 	Type      string  `json:"type"`

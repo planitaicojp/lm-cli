@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"math"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -129,7 +130,7 @@ var usageCmd = &cobra.Command{
 		}
 		var usagePct float64
 		if quota.Value > 0 {
-			usagePct = float64(consumption.TotalUsage) / float64(quota.Value) * 100
+			usagePct = math.Round(float64(consumption.TotalUsage)/float64(quota.Value)*1000) / 10
 		}
 
 		row := model.BotUsageRow{
