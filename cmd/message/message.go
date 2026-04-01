@@ -24,18 +24,24 @@ var Cmd = &cobra.Command{
 
 func init() {
 	pushCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
-	pushCmd.Flags().String("file", "", "JSON file with message payload")
+	pushCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
 	pushCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 
+	multicastCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
 	multicastCmd.Flags().StringSlice("to", nil, "user IDs (comma-separated)")
 	multicastCmd.Flags().String("to-file", "", "file with one user ID per line")
-	multicastCmd.Flags().String("file", "", "JSON file with message payload")
+	multicastCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
+	multicastCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 
-	broadcastCmd.Flags().String("file", "", "JSON file with message payload")
+	broadcastCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
+	broadcastCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
+	broadcastCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 	broadcastCmd.Flags().Bool("force", false, "skip confirmation prompt")
 
+	narrowcastCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
 	narrowcastCmd.Flags().String("filter-file", "", "JSON file with narrowcast filter")
-	narrowcastCmd.Flags().String("file", "", "JSON file with message payload")
+	narrowcastCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
+	narrowcastCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 	narrowcastCmd.Flags().Bool("force", false, "skip confirmation prompt")
 
 	Cmd.AddCommand(pushCmd)
