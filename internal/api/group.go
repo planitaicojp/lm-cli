@@ -31,5 +31,6 @@ func (a *GroupAPI) GetMembers(groupID string) (*model.GroupMembersResponse, erro
 
 func (a *GroupAPI) Leave(groupID string) error {
 	url := fmt.Sprintf("%s/v2/bot/group/%s/leave", a.Client.BaseURL, groupID)
-	return a.Client.Delete(url)
+	_, err := a.Client.Post(url, nil, nil)
+	return err
 }

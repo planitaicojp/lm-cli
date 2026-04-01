@@ -8,7 +8,6 @@ import (
 
 	"github.com/crowdy/lm-cli/cmd/cmdutil"
 	"github.com/crowdy/lm-cli/internal/api"
-	lmerrors "github.com/crowdy/lm-cli/internal/errors"
 	"github.com/crowdy/lm-cli/internal/model"
 	"github.com/crowdy/lm-cli/internal/output"
 )
@@ -250,17 +249,12 @@ var aliasCreateCmd = &cobra.Command{
 			return err
 		}
 
-		if file == "" {
-			return &lmerrors.ValidationError{Field: "file", Message: "required"}
-		}
-
 		rmAPI := &api.RichMenuAPI{Client: client}
-		alias, err := rmAPI.CreateAlias(body)
-		if err != nil {
+		if err := rmAPI.CreateAlias(body); err != nil {
 			return err
 		}
 
-		fmt.Fprintf(os.Stderr, "Created alias: %s\n", alias.RichMenuAliasID)
+		fmt.Fprintln(os.Stderr, "Created rich menu alias")
 		return nil
 	},
 }

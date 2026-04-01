@@ -61,7 +61,7 @@ var pushCmd = &cobra.Command{
 			return err
 		}
 
-		if !isQuiet(cmd) {
+		if !cmdutil.IsQuiet(cmd) {
 			fmt.Fprintf(os.Stderr, "Pushed %d message(s) to %s\n", len(resp.SentMessages), userID)
 		}
 		return nil
@@ -107,7 +107,7 @@ var multicastCmd = &cobra.Command{
 			return err
 		}
 
-		if !isQuiet(cmd) {
+		if !cmdutil.IsQuiet(cmd) {
 			fmt.Fprintf(os.Stderr, "Multicasted %d message(s) to %d users\n", len(resp.SentMessages), len(userIDs))
 		}
 		return nil
@@ -135,7 +135,7 @@ var broadcastCmd = &cobra.Command{
 			return err
 		}
 
-		if !isQuiet(cmd) {
+		if !cmdutil.IsQuiet(cmd) {
 			fmt.Fprintf(os.Stderr, "Broadcasted %d message(s)\n", len(resp.SentMessages))
 		}
 		return nil
@@ -174,7 +174,7 @@ var narrowcastCmd = &cobra.Command{
 			return err
 		}
 
-		if !isQuiet(cmd) {
+		if !cmdutil.IsQuiet(cmd) {
 			fmt.Fprintf(os.Stderr, "Narrowcasted %d message(s)\n", len(resp.SentMessages))
 		}
 		return nil
@@ -198,13 +198,17 @@ var replyCmd = &cobra.Command{
 			return err
 		}
 
+		if !cmdutil.IsQuiet(cmd) {
+			fmt.Fprintln(os.Stderr, "Note: reply token is valid for 30 seconds from the webhook event.")
+		}
+
 		msgAPI := &api.MessageAPI{Client: client}
 		resp, err := msgAPI.Reply(replyToken, messages)
 		if err != nil {
 			return err
 		}
 
-		if !isQuiet(cmd) {
+		if !cmdutil.IsQuiet(cmd) {
 			fmt.Fprintf(os.Stderr, "Replied with %d message(s)\n", len(resp.SentMessages))
 		}
 		return nil
@@ -276,9 +280,4 @@ func readLines(path string) ([]string, error) {
 		}
 	}
 	return lines, nil
-}
-
-func isQuiet(cmd *cobra.Command) bool {
-	quiet, _ := cmd.Flags().GetBool("quiet")
-	return quiet
 }

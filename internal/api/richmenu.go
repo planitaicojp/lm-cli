@@ -114,13 +114,9 @@ func (a *RichMenuAPI) UnsetDefault() error {
 	return a.Client.Delete(a.Client.BaseURL + "/v2/bot/user/all/richmenu")
 }
 
-func (a *RichMenuAPI) CreateAlias(body any) (*model.RichMenuAlias, error) {
-	var alias model.RichMenuAlias
-	_, err := a.Client.Post(a.Client.BaseURL+"/v2/bot/richmenu/alias", body, &alias)
-	if err != nil {
-		return nil, err
-	}
-	return &alias, nil
+func (a *RichMenuAPI) CreateAlias(body any) error {
+	_, err := a.Client.Post(a.Client.BaseURL+"/v2/bot/richmenu/alias", body, nil)
+	return err
 }
 
 func (a *RichMenuAPI) ListAliases() ([]model.RichMenuAlias, error) {
