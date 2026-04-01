@@ -109,10 +109,18 @@ func validateDate(date string) error {
 			Message: fmt.Sprintf("must be YYYYMMDD format, got %q", date),
 		}
 	}
-	if _, err := time.Parse("20060102", date); err != nil {
+	parsed, err := time.Parse("20060102", date)
+	if err != nil {
 		return &lmerrors.ValidationError{
 			Field:   "date",
 			Message: fmt.Sprintf("invalid date %q (expected YYYYMMDD)", date),
+		}
+	}
+	today := time.Now().Truncate(24 * time.Hour)
+	if !parsed.Before(today) {
+		return &lmerrors.ValidationError{
+			Field:   "date",
+			Message: fmt.Sprintf("date %q must be before today (LINE API does not support today or future dates)", date),
 		}
 	}
 	return nil

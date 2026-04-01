@@ -56,6 +56,9 @@ func (a *MessageAPI) Narrowcast(req model.NarrowcastRequest) (*model.MessageResp
 // The onBatch callback is called before each batch with (batchNumber, totalBatches).
 func (a *MessageAPI) MulticastBatch(to []string, messages []any, onBatch func(batch, total int)) (*model.MessageResponse, error) {
 	if len(to) <= multicastBatchSize {
+		if onBatch != nil {
+			onBatch(1, 1)
+		}
 		return a.Multicast(to, messages)
 	}
 	totalBatches := (len(to) + multicastBatchSize - 1) / multicastBatchSize

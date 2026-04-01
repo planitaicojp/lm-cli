@@ -1,6 +1,9 @@
 package errors
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ExitCoder is implemented by errors that carry a process exit code.
 type ExitCoder interface {
@@ -134,11 +137,13 @@ func (e *CancelledError) ExitCode() int {
 }
 
 // GetExitCode returns the exit code for the given error.
+// Supports wrapped errors (fmt.Errorf("%w", ...)).
 func GetExitCode(err error) int {
 	if err == nil {
 		return ExitOK
 	}
-	if ec, ok := err.(ExitCoder); ok {
+	var ec ExitCoder
+	if errors.As(err, &ec) {
 		return ec.ExitCode()
 	}
 	return ExitGeneral

@@ -109,7 +109,7 @@ var multicastCmd = &cobra.Command{
 		msgAPI := &api.MessageAPI{Client: client}
 		resp, err := msgAPI.MulticastBatch(userIDs, messages, func(batch, total int) {
 			if !cmdutil.IsQuiet(cmd) {
-				fmt.Fprintf(os.Stderr, "Sending batch %d/%d (%d users)...\n", batch, total, minInt(500, len(userIDs)-(batch-1)*500))
+				fmt.Fprintf(os.Stderr, "Sending batch %d/%d (%d users)...\n", batch, total, min(500, len(userIDs)-(batch-1)*500))
 			}
 		})
 		if err != nil {
@@ -284,13 +284,6 @@ func buildMessages(cmd *cobra.Command, args []string) ([]any, error) {
 	default:
 		return nil, &lmerrors.ValidationError{Field: "type", Message: fmt.Sprintf("unknown type %q", msgType)}
 	}
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func confirmDangerous(cmd *cobra.Command, forceFlag bool, message string) error {

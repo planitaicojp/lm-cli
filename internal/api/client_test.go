@@ -115,3 +115,62 @@ func containsRune(s, substr string) bool {
 	}
 	return false
 }
+
+func TestNewClient_HTTPSEnforcement(t *testing.T) {
+	t.Run("rejects_http_endpoint", func(t *testing.T) {
+		t.Setenv("LM_ENDPOINT", "http://evil.example.com")
+		t.Setenv("LM_ALLOW_HTTP", "")
+		_, err := NewClient("tok")
+		if err == nil {
+			t.Fatal("expected error for http endpoint, got nil")
+		}
+	})
+
+	t.Run("allows_https_endpoint", func(t *testing.T) {
+		t.Setenv("LM_ENDPOINT", "https://api.example.com")
+		c, err := NewClient("tok")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if c.BaseURL != "https://api.example.com" {
+			t.Errorf("expected https://api.example.com, got %s", c.BaseURL)
+		}
+	})
+
+	t.Run("allows_http_with_LM_ALLOW_HTTP", func(t *testing.T) {
+		t.Setenv("LM_ENDPOINT", "http://localhost:8080")
+		t.Setenv("LM_ALLOW_HTTP", "1")
+		c, err := NewClient("tok")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if c.BaseURL != "http://localhost:8080" {
+			t.Errorf("expected http://localhost:8080, got %s", c.BaseURL)
+		}
+	})
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		wantGt bool
+	}{
+		{"empty", "", false},
+		{"integer_seconds", "60", true},
+		{"invalid", "abc", false},
+		{"http_date_future", "Sun, 01 Jan 2034 00:00:00 GMT", true},
+		{"http_date_past", "Mon, 01 Jan 2001 00:00:00 GMT", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := parseRetryAfter(tt.header)
+			if tt.wantGt && d <= 0 {
+				t.Errorf("expected positive duration for %q, got %v", tt.header, d)
+			}
+			if !tt.wantGt && d != 0 {
+				t.Errorf("expected zero duration for %q, got %v", tt.header, d)
+			}
+		})
+	}
+}

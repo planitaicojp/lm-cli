@@ -29,7 +29,7 @@ func NewClient(cmd *cobra.Command) (*api.Client, error) {
 
 	// Allow LM_TOKEN to bypass profile requirement
 	if t := config.EnvOr(config.EnvToken, ""); t != "" {
-		return api.NewClient(t), nil
+		return api.NewClient(t)
 	}
 
 	if _, ok := cfg.Profiles[profileName]; !ok {
@@ -51,5 +51,5 @@ func NewClient(cmd *cobra.Command) (*api.Client, error) {
 		return nil, err
 	}
 
-	return api.NewClient(token), nil
+	return api.NewClient(token)
 }

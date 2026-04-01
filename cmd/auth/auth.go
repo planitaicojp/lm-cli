@@ -397,7 +397,11 @@ var removeCmd = &cobra.Command{
 
 func verifyToken(token string) {
 	fmt.Fprintln(os.Stderr, "Verifying token...")
-	client := api.NewClient(token)
+	client, err := api.NewClient(token)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		return
+	}
 	botAPI := &api.BotAPI{Client: client}
 	info, err := botAPI.GetInfo()
 	if err != nil {

@@ -147,27 +147,81 @@ func TestMessageAPI_MulticastBatch(t *testing.T) {
 			t.Errorf("expected 2 sent messages, got %d", len(resp.SentMessages))
 		}
 	})
-}
 
-func TestParseRetryAfter(t *testing.T) {
-	tests := []struct {
-		name   string
-		header string
-		wantGt bool
-	}{
-		{"empty", "", false},
-		{"integer_seconds", "60", true},
-		{"invalid", "abc", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := parseRetryAfter(tt.header)
-			if tt.wantGt && d <= 0 {
-				t.Errorf("expected positive duration for %q, got %v", tt.header, d)
-			}
-			if !tt.wantGt && d != 0 {
-				t.Errorf("expected zero duration for %q, got %v", tt.header, d)
+	t.Run("exactly_500_single_batch", func(t *testing.T) {
+		var reqCount int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&reqCount, 1)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"sentMessages": []map[string]string{{"id": "msg1"}},
+			})
+		}))
+		defer srv.Close()
+
+		c := &Client{HTTP: &http.Client{}, Token: "tok", BaseURL: srv.URL}
+		msgAPI := &MessageAPI{Client: c}
+
+		ids := make([]string, 500)
+		for i := range ids {
+			ids[i] = "Utest"
+		}
+
+		var batchCalls int
+		_, err := msgAPI.MulticastBatch(ids, []any{map[string]string{"type": "text", "text": "hi"}}, func(batch, total int) {
+			batchCalls++
+			if total != 1 {
+				t.Errorf("expected 1 total batch, got %d", total)
 			}
 		})
-	}
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if atomic.LoadInt32(&reqCount) != 1 {
+			t.Errorf("expected 1 request, got %d", reqCount)
+		}
+		if batchCalls != 1 {
+			t.Errorf("expected 1 batch callback, got %d", batchCalls)
+		}
+	})
+
+	t.Run("1500_users_three_batches", func(t *testing.T) {
+		var reqCount int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&reqCount, 1)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"sentMessages": []map[string]string{{"id": "msg1"}},
+			})
+		}))
+		defer srv.Close()
+
+		c := &Client{HTTP: &http.Client{}, Token: "tok", BaseURL: srv.URL}
+		msgAPI := &MessageAPI{Client: c}
+
+		ids := make([]string, 1500)
+		for i := range ids {
+			ids[i] = "Utest"
+		}
+
+		var batchCalls int
+		resp, err := msgAPI.MulticastBatch(ids, []any{map[string]string{"type": "text", "text": "hi"}}, func(batch, total int) {
+			batchCalls++
+			if total != 3 {
+				t.Errorf("expected 3 total batches, got %d", total)
+			}
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if atomic.LoadInt32(&reqCount) != 3 {
+			t.Errorf("expected 3 requests, got %d", reqCount)
+		}
+		if batchCalls != 3 {
+			t.Errorf("expected 3 batch callbacks, got %d", batchCalls)
+		}
+		if len(resp.SentMessages) != 3 {
+			t.Errorf("expected 3 sent messages, got %d", len(resp.SentMessages))
+		}
+	})
 }

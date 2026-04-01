@@ -32,11 +32,11 @@ type Client struct {
 }
 
 // NewClient creates a new API client.
-func NewClient(token string) *Client {
+func NewClient(token string) (*Client, error) {
 	baseURL := defaultBaseURL
 	if ep := os.Getenv(config.EnvEndpoint); ep != "" {
 		if !strings.HasPrefix(ep, "https://") && os.Getenv("LM_ALLOW_HTTP") != "1" {
-			panic(fmt.Sprintf("LM_ENDPOINT must start with https://, got: %s", ep))
+			return nil, fmt.Errorf("LM_ENDPOINT must start with https://, got: %s", ep)
 		}
 		baseURL = ep
 	}
@@ -44,7 +44,7 @@ func NewClient(token string) *Client {
 		HTTP:    &http.Client{Timeout: defaultTimeout},
 		Token:   token,
 		BaseURL: baseURL,
-	}
+	}, nil
 }
 
 // Do executes an HTTP request with auth headers and error handling.
