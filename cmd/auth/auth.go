@@ -3,6 +3,8 @@ package auth
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -197,6 +199,16 @@ func loginV2(profileName string, cfg *config.Config) error {
 	privateKeyFile, err := prompt.String("Private Key file path")
 	if err != nil {
 		return err
+	}
+
+	// Expand ~ and resolve to absolute path
+	if strings.HasPrefix(privateKeyFile, "~/") {
+		home, _ := os.UserHomeDir()
+		privateKeyFile = filepath.Join(home, privateKeyFile[2:])
+	}
+	privateKeyFile, err = filepath.Abs(privateKeyFile)
+	if err != nil {
+		return fmt.Errorf("resolving key path: %w", err)
 	}
 
 	// Issue token immediately to verify credentials

@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -98,37 +100,43 @@ var validateCmd = &cobra.Command{
 		// config.yaml
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Printf("config.yaml:        error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "config.yaml:        error: %v\n", err)
 			hasError = true
 		} else {
 			profileCount := len(cfg.Profiles)
 			if profileCount == 0 {
-				fmt.Printf("config.yaml:        ok (no profiles)\n")
+				fmt.Fprintf(os.Stderr, "config.yaml:        ok (no profiles)\n")
 			} else {
-				fmt.Printf("config.yaml:        ok (%d profile(s))\n", profileCount)
+				fmt.Fprintf(os.Stderr, "config.yaml:        ok (%d profile(s))\n", profileCount)
 			}
 		}
 
 		// credentials.yaml
 		_, err = config.LoadCredentials()
 		if err != nil {
-			fmt.Printf("credentials.yaml:   error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "credentials.yaml:   error: %v\n", err)
 			hasError = true
 		} else {
-			fmt.Printf("credentials.yaml:   ok\n")
+			fmt.Fprintf(os.Stderr, "credentials.yaml:   ok\n")
 		}
 
 		// tokens.yaml
 		tokens, err := config.LoadTokens()
 		if err != nil {
-			fmt.Printf("tokens.yaml:        error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "tokens.yaml:        error: %v\n", err)
 			hasError = true
 		} else {
 			if len(tokens.Profiles) == 0 {
-				fmt.Printf("tokens.yaml:        ok (no tokens)\n")
+				fmt.Fprintf(os.Stderr, "tokens.yaml:        ok (no tokens)\n")
 			} else {
+				names := make([]string, 0, len(tokens.Profiles))
+				for name := range tokens.Profiles {
+					names = append(names, name)
+				}
+				sort.Strings(names)
 				var statuses []string
-				for name, entry := range tokens.Profiles {
+				for _, name := range names {
+					entry := tokens.Profiles[name]
 					if entry.Token == "" {
 						statuses = append(statuses, name+": empty")
 					} else if entry.TokenType == "longterm" || entry.ExpiresAt.IsZero() {
@@ -139,16 +147,16 @@ var validateCmd = &cobra.Command{
 						statuses = append(statuses, name+": expired")
 					}
 				}
-				fmt.Printf("tokens.yaml:        ok (%s)\n", strings.Join(statuses, ", "))
+				fmt.Fprintf(os.Stderr, "tokens.yaml:        ok (%s)\n", strings.Join(statuses, ", "))
 			}
 		}
 
 		// Active profile
 		if cfg != nil {
 			if cfg.ActiveProfile != "" {
-				fmt.Printf("Active profile:     %s\n", cfg.ActiveProfile)
+				fmt.Fprintf(os.Stderr, "Active profile:     %s\n", cfg.ActiveProfile)
 			} else {
-				fmt.Printf("Active profile:     (none)\n")
+				fmt.Fprintf(os.Stderr, "Active profile:     (none)\n")
 			}
 		}
 
