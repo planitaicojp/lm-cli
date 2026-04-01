@@ -23,18 +23,25 @@ var Cmd = &cobra.Command{
 }
 
 func init() {
-	pushCmd.Flags().String("type", "text", "message type: text, sticker, image")
-	pushCmd.Flags().String("file", "", "JSON file with message payload")
+	pushCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
+	pushCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
+	pushCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 
+	multicastCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
 	multicastCmd.Flags().StringSlice("to", nil, "user IDs (comma-separated)")
 	multicastCmd.Flags().String("to-file", "", "file with one user ID per line")
-	multicastCmd.Flags().String("file", "", "JSON file with message payload")
+	multicastCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
+	multicastCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 
-	broadcastCmd.Flags().String("file", "", "JSON file with message payload")
+	broadcastCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
+	broadcastCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
+	broadcastCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 	broadcastCmd.Flags().Bool("force", false, "skip confirmation prompt")
 
+	narrowcastCmd.Flags().String("type", "text", "message type: text, sticker, image, flex")
 	narrowcastCmd.Flags().String("filter-file", "", "JSON file with narrowcast filter")
-	narrowcastCmd.Flags().String("file", "", "JSON file with message payload")
+	narrowcastCmd.Flags().String("file", "", "JSON file with message payload (for flex: contents only)")
+	narrowcastCmd.Flags().String("alt-text", "", "alt text for flex messages (default: \"Flex Message\")")
 	narrowcastCmd.Flags().Bool("force", false, "skip confirmation prompt")
 
 	Cmd.AddCommand(pushCmd)
@@ -236,8 +243,13 @@ var replyCmd = &cobra.Command{
 
 // buildMessages constructs a message slice from command args/flags.
 func buildMessages(cmd *cobra.Command, args []string) ([]any, error) {
-	// --file overrides everything
-	if fileFlag, _ := cmd.Flags().GetString("file"); fileFlag != "" {
+	msgType, _ := cmd.Flags().GetString("type")
+	if msgType == "" {
+		msgType = "text"
+	}
+
+	// --file overrides everything (except for flex which uses --file differently)
+	if fileFlag, _ := cmd.Flags().GetString("file"); fileFlag != "" && msgType != "flex" {
 		var msgs []any
 		if err := api.ParseJSONFile(fileFlag, &msgs); err != nil {
 			// Try as a single message
@@ -248,11 +260,6 @@ func buildMessages(cmd *cobra.Command, args []string) ([]any, error) {
 			return []any{msg}, nil
 		}
 		return msgs, nil
-	}
-
-	msgType, _ := cmd.Flags().GetString("type")
-	if msgType == "" {
-		msgType = "text"
 	}
 
 	switch msgType {
@@ -280,6 +287,25 @@ func buildMessages(cmd *cobra.Command, args []string) ([]any, error) {
 			}
 		}
 		return []any{model.ImageMessage{Type: "image", OriginalContentURL: args[0], PreviewImageURL: args[1]}}, nil
+
+	case "flex":
+		fileFlag, _ := cmd.Flags().GetString("file")
+		if fileFlag == "" {
+			return nil, &lmerrors.ValidationError{Field: "file", Message: "--file is required for --type flex"}
+		}
+		var contents any
+		if err := api.ParseJSONFile(fileFlag, &contents); err != nil {
+			return nil, err
+		}
+		altText, _ := cmd.Flags().GetString("alt-text")
+		if altText == "" {
+			altText = "Flex Message"
+		}
+		return []any{map[string]any{
+			"type":     "flex",
+			"altText":  altText,
+			"contents": contents,
+		}}, nil
 
 	default:
 		return nil, &lmerrors.ValidationError{Field: "type", Message: fmt.Sprintf("unknown type %q", msgType)}

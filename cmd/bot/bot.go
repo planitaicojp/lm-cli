@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"math"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -21,6 +22,7 @@ func init() {
 	Cmd.AddCommand(infoCmd)
 	Cmd.AddCommand(quotaCmd)
 	Cmd.AddCommand(consumptionCmd)
+	Cmd.AddCommand(usageCmd)
 }
 
 var infoCmd = &cobra.Command{
@@ -100,5 +102,49 @@ var consumptionCmd = &cobra.Command{
 			return output.New(format).Format(os.Stdout, consumption)
 		}
 		return output.New(format).Format(os.Stdout, rows)
+	},
+}
+
+var usageCmd = &cobra.Command{
+	Use:   "usage",
+	Short: "Show combined quota and consumption",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := cmdutil.NewClient(cmd)
+		if err != nil {
+			return err
+		}
+
+		botAPI := &api.BotAPI{Client: client}
+		quota, err := botAPI.GetQuota()
+		if err != nil {
+			return err
+		}
+		consumption, err := botAPI.GetConsumption()
+		if err != nil {
+			return err
+		}
+
+		remaining := quota.Value - consumption.TotalUsage
+		if remaining < 0 {
+			remaining = 0
+		}
+		var usagePct float64
+		if quota.Value > 0 {
+			usagePct = math.Round(float64(consumption.TotalUsage)/float64(quota.Value)*1000) / 10
+		}
+
+		row := model.BotUsageRow{
+			Type:      quota.Type,
+			Limit:     quota.Value,
+			Used:      consumption.TotalUsage,
+			Remaining: remaining,
+			UsagePct:  usagePct,
+		}
+
+		format := cmdutil.GetFormat(cmd)
+		if format == "json" || format == "yaml" {
+			return output.New(format).Format(os.Stdout, row)
+		}
+		return output.New(format).Format(os.Stdout, []model.BotUsageRow{row})
 	},
 }
