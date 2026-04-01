@@ -122,6 +122,17 @@ func (e *RateLimitError) ExitCode() int {
 	return ExitRateLimit
 }
 
+// CancelledError represents a user-cancelled operation.
+type CancelledError struct{}
+
+func (e *CancelledError) Error() string {
+	return "cancelled"
+}
+
+func (e *CancelledError) ExitCode() int {
+	return ExitCancelled
+}
+
 // GetExitCode returns the exit code for the given error.
 func GetExitCode(err error) int {
 	if err == nil {

@@ -1,12 +1,15 @@
 package insight
 
 import (
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/crowdy/lm-cli/cmd/cmdutil"
 	"github.com/crowdy/lm-cli/internal/api"
+	lmerrors "github.com/crowdy/lm-cli/internal/errors"
 	"github.com/crowdy/lm-cli/internal/model"
 	"github.com/crowdy/lm-cli/internal/output"
 )
@@ -36,6 +39,9 @@ var followersCmd = &cobra.Command{
 		}
 
 		date, _ := cmd.Flags().GetString("date")
+		if err := validateDate(date); err != nil {
+			return err
+		}
 
 		insightAPI := &api.InsightAPI{Client: client}
 		stats, err := insightAPI.GetFollowers(date)
@@ -68,6 +74,9 @@ var deliveryCmd = &cobra.Command{
 		}
 
 		date, _ := cmd.Flags().GetString("date")
+		if err := validateDate(date); err != nil {
+			return err
+		}
 		msgType, _ := cmd.Flags().GetString("type")
 
 		insightAPI := &api.InsightAPI{Client: client}
@@ -88,4 +97,23 @@ var deliveryCmd = &cobra.Command{
 		}
 		return output.New(format).Format(os.Stdout, rows)
 	},
+}
+
+func validateDate(date string) error {
+	if date == "" {
+		return nil
+	}
+	if len(date) != 8 {
+		return &lmerrors.ValidationError{
+			Field:   "date",
+			Message: fmt.Sprintf("must be YYYYMMDD format, got %q", date),
+		}
+	}
+	if _, err := time.Parse("20060102", date); err != nil {
+		return &lmerrors.ValidationError{
+			Field:   "date",
+			Message: fmt.Sprintf("invalid date %q (expected YYYYMMDD)", date),
+		}
+	}
+	return nil
 }

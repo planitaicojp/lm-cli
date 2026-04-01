@@ -5,12 +5,15 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/crowdy/lm-cli/cmd/cmdutil"
 	"github.com/crowdy/lm-cli/internal/api"
+	"github.com/crowdy/lm-cli/internal/config"
 	lmerrors "github.com/crowdy/lm-cli/internal/errors"
 	"github.com/crowdy/lm-cli/internal/model"
+	"github.com/crowdy/lm-cli/internal/prompt"
 )
 
 // Cmd is the message command group.
@@ -28,9 +31,11 @@ func init() {
 	multicastCmd.Flags().String("file", "", "JSON file with message payload")
 
 	broadcastCmd.Flags().String("file", "", "JSON file with message payload")
+	broadcastCmd.Flags().Bool("force", false, "skip confirmation prompt")
 
 	narrowcastCmd.Flags().String("filter-file", "", "JSON file with narrowcast filter")
 	narrowcastCmd.Flags().String("file", "", "JSON file with message payload")
+	narrowcastCmd.Flags().Bool("force", false, "skip confirmation prompt")
 
 	Cmd.AddCommand(pushCmd)
 	Cmd.AddCommand(multicastCmd)
@@ -102,7 +107,11 @@ var multicastCmd = &cobra.Command{
 		}
 
 		msgAPI := &api.MessageAPI{Client: client}
-		resp, err := msgAPI.Multicast(userIDs, messages)
+		resp, err := msgAPI.MulticastBatch(userIDs, messages, func(batch, total int) {
+			if !cmdutil.IsQuiet(cmd) {
+				fmt.Fprintf(os.Stderr, "Sending batch %d/%d (%d users)...\n", batch, total, minInt(500, len(userIDs)-(batch-1)*500))
+			}
+		})
 		if err != nil {
 			return err
 		}
@@ -119,6 +128,11 @@ var broadcastCmd = &cobra.Command{
 	Short: "Broadcast a message to all followers",
 	Args:  cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		forceFlag, _ := cmd.Flags().GetBool("force")
+		if err := confirmDangerous(cmd, forceFlag, "Broadcast to ALL followers. This cannot be undone.\nProceed?"); err != nil {
+			return err
+		}
+
 		client, err := cmdutil.NewClient(cmd)
 		if err != nil {
 			return err
@@ -147,6 +161,11 @@ var narrowcastCmd = &cobra.Command{
 	Short: "Narrowcast a message",
 	Args:  cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		forceFlag, _ := cmd.Flags().GetBool("force")
+		if err := confirmDangerous(cmd, forceFlag, "Narrowcast a message to targeted followers. This cannot be undone.\nProceed?"); err != nil {
+			return err
+		}
+
 		client, err := cmdutil.NewClient(cmd)
 		if err != nil {
 			return err
@@ -265,6 +284,29 @@ func buildMessages(cmd *cobra.Command, args []string) ([]any, error) {
 	default:
 		return nil, &lmerrors.ValidationError{Field: "type", Message: fmt.Sprintf("unknown type %q", msgType)}
 	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func confirmDangerous(cmd *cobra.Command, forceFlag bool, message string) error {
+	if config.IsNoInput() || forceFlag {
+		return nil
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return &lmerrors.ValidationError{
+			Message: "confirmation required; use --force or LM_NO_INPUT=1 to bypass",
+		}
+	}
+	confirmed, err := prompt.Confirm(message)
+	if err != nil || !confirmed {
+		return &lmerrors.CancelledError{}
+	}
+	return nil
 }
 
 func readLines(path string) ([]string, error) {

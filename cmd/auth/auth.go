@@ -102,6 +102,7 @@ func loginLongterm(profileName string, cfg *config.Config) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "Logged in to profile %q with longterm token\n", profileName)
+	verifyToken(token)
 	return nil
 }
 
@@ -175,6 +176,7 @@ func loginStateless(profileName string, cfg *config.Config) error {
 		profileName,
 		expiresAt.Format(time.RFC3339),
 		expiresAt.In(jst).Format("2006-01-02 15:04"))
+	verifyToken(token)
 	return nil
 }
 
@@ -391,6 +393,19 @@ var removeCmd = &cobra.Command{
 		fmt.Fprintf(os.Stderr, "Removed profile %q\n", name)
 		return nil
 	},
+}
+
+func verifyToken(token string) {
+	fmt.Fprintln(os.Stderr, "Verifying token...")
+	client := api.NewClient(token)
+	botAPI := &api.BotAPI{Client: client}
+	info, err := botAPI.GetInfo()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: token saved but verification failed: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Run 'lm bot info' to test your token manually.")
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Verified as @%s (%s)\n", info.BasicID, info.DisplayName)
 }
 
 func getProfileFlag(cmd *cobra.Command) string {

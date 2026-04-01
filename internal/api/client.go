@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/crowdy/lm-cli/internal/config"
@@ -33,6 +35,9 @@ type Client struct {
 func NewClient(token string) *Client {
 	baseURL := defaultBaseURL
 	if ep := os.Getenv(config.EnvEndpoint); ep != "" {
+		if !strings.HasPrefix(ep, "https://") && os.Getenv("LM_ALLOW_HTTP") != "1" {
+			panic(fmt.Sprintf("LM_ENDPOINT must start with https://, got: %s", ep))
+		}
 		baseURL = ep
 	}
 	return &Client{
@@ -78,13 +83,8 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		if (resp.StatusCode == 429 || resp.StatusCode >= 500) && attempt < maxRetries && req.Body == nil {
 			retryAfter := resp.Header.Get("Retry-After")
 			resp.Body.Close()
-			if retryAfter != "" {
-				// Best-effort parse; fall back to exponential
-				dur, parseErr := time.ParseDuration(retryAfter + "s")
-				if parseErr != nil {
-					dur = time.Duration(attempt+1) * time.Second
-				}
-				time.Sleep(dur)
+			if d := parseRetryAfter(retryAfter); d > 0 {
+				time.Sleep(d)
 			} else {
 				time.Sleep(time.Duration(attempt+1) * time.Second)
 			}
@@ -219,4 +219,22 @@ func parseAPIError(resp *http.Response) error {
 	}
 
 	return apiErr
+}
+
+// parseRetryAfter parses an HTTP Retry-After header value.
+// Supports integer seconds (RFC 7231) and HTTP-date format.
+func parseRetryAfter(header string) time.Duration {
+	if header == "" {
+		return 0
+	}
+	if n, err := strconv.Atoi(header); err == nil {
+		return time.Duration(n) * time.Second
+	}
+	if t, err := http.ParseTime(header); err == nil {
+		d := time.Until(t)
+		if d > 0 {
+			return d
+		}
+	}
+	return 0
 }
