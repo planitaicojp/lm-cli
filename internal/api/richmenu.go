@@ -53,16 +53,20 @@ func (a *RichMenuAPI) Delete(richMenuID string) error {
 func (a *RichMenuAPI) UploadImage(richMenuID, imagePath string) error {
 	const maxImageSize = 1 * 1024 * 1024 // 1MB
 
+	info, err := os.Stat(imagePath)
+	if err != nil {
+		return fmt.Errorf("stat image file: %w", err)
+	}
+	if info.Size() > maxImageSize {
+		return &lmerrors.ValidationError{
+			Field:   "image",
+			Message: fmt.Sprintf("file size %d bytes exceeds 1MB limit", info.Size()),
+		}
+	}
+
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
 		return fmt.Errorf("reading image file: %w", err)
-	}
-
-	if len(data) > maxImageSize {
-		return &lmerrors.ValidationError{
-			Field:   "image",
-			Message: fmt.Sprintf("file size %d bytes exceeds 1MB limit", len(data)),
-		}
 	}
 
 	ext := strings.ToLower(filepath.Ext(imagePath))

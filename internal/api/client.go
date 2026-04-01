@@ -35,7 +35,7 @@ type Client struct {
 func NewClient(token string) (*Client, error) {
 	baseURL := defaultBaseURL
 	if ep := os.Getenv(config.EnvEndpoint); ep != "" {
-		if !strings.HasPrefix(ep, "https://") && os.Getenv("LM_ALLOW_HTTP") != "1" {
+		if !strings.HasPrefix(strings.ToLower(ep), "https://") && os.Getenv("LM_ALLOW_HTTP") != "1" {
 			return nil, fmt.Errorf("LM_ENDPOINT must start with https://, got: %s", ep)
 		}
 		baseURL = ep
