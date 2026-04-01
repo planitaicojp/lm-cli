@@ -70,6 +70,61 @@ func TestMessageAPI_Broadcast(t *testing.T) {
 	})
 }
 
+func TestMessageAPI_Push_FlexMessage(t *testing.T) {
+	t.Run("flex message structure", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req map[string]any
+			json.NewDecoder(r.Body).Decode(&req)
+			msgs := req["messages"].([]any)
+			if len(msgs) != 1 {
+				t.Fatalf("expected 1 message, got %d", len(msgs))
+			}
+			msg := msgs[0].(map[string]any)
+			if msg["type"] != "flex" {
+				t.Errorf("expected type flex, got %v", msg["type"])
+			}
+			if msg["altText"] != "Test Alt" {
+				t.Errorf("expected altText 'Test Alt', got %v", msg["altText"])
+			}
+			contents := msg["contents"].(map[string]any)
+			if contents["type"] != "bubble" {
+				t.Errorf("expected contents.type bubble, got %v", contents["type"])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(model.MessageResponse{
+				SentMessages: []model.SentMessage{{ID: "msg1", Type: "flex"}},
+			})
+		}))
+		defer srv.Close()
+
+		c := &Client{HTTP: &http.Client{}, Token: "tok", BaseURL: srv.URL}
+		msgAPI := &MessageAPI{Client: c}
+
+		flexMsg := map[string]any{
+			"type":    "flex",
+			"altText": "Test Alt",
+			"contents": map[string]any{
+				"type": "bubble",
+				"body": map[string]any{
+					"type":   "box",
+					"layout": "vertical",
+					"contents": []any{
+						map[string]any{"type": "text", "text": "Hello!"},
+					},
+				},
+			},
+		}
+
+		resp, err := msgAPI.Push("Uabc123", []any{flexMsg})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resp.SentMessages) != 1 {
+			t.Errorf("expected 1 sent message, got %d", len(resp.SentMessages))
+		}
+	})
+}
+
 func TestMessageAPI_MulticastBatch(t *testing.T) {
 	t.Run("single_batch_under_500", func(t *testing.T) {
 		var reqCount int32

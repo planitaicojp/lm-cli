@@ -39,3 +39,12 @@ type ConsumptionInfo struct {
 type ConsumptionRow struct {
 	TotalUsage int `json:"total_usage"`
 }
+
+// BotUsageRow combines quota and consumption for table output.
+type BotUsageRow struct {
+	Type      string  `json:"type"`
+	Limit     int     `json:"limit"`
+	Used      int     `json:"used"`
+	Remaining int     `json:"remaining"`
+	UsagePct  float64 `json:"usage_pct"`
+}

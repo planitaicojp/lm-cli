@@ -23,6 +23,9 @@ func init() {
 	createCmd.Flags().String("file", "", "JSON file with audience group definition (required)")
 	_ = createCmd.MarkFlagRequired("file")
 
+	listCmd.Flags().Int("page", 0, "page number to retrieve")
+	listCmd.Flags().Bool("all", false, "fetch all pages with auto-pagination")
+
 	Cmd.AddCommand(createCmd)
 	Cmd.AddCommand(getCmd)
 	Cmd.AddCommand(listCmd)
@@ -101,19 +104,47 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
+		allFlag, _ := cmd.Flags().GetBool("all")
+		page, _ := cmd.Flags().GetInt("page")
+
 		audienceAPI := &api.AudienceAPI{Client: client}
-		resp, err := audienceAPI.List()
-		if err != nil {
-			return err
+
+		var allGroups []model.AudienceGroup
+
+		if allFlag {
+			p := 1
+			for {
+				resp, err := audienceAPI.List(p)
+				if err != nil {
+					return err
+				}
+				allGroups = append(allGroups, resp.AudienceGroups...)
+				if !resp.HasNextPage {
+					break
+				}
+				p++
+				if !cmdutil.IsQuiet(cmd) {
+					fmt.Fprintf(os.Stderr, "Fetched %d audience groups...\r", len(allGroups))
+				}
+			}
+			if !cmdutil.IsQuiet(cmd) {
+				fmt.Fprintln(os.Stderr)
+			}
+		} else {
+			resp, err := audienceAPI.List(page)
+			if err != nil {
+				return err
+			}
+			allGroups = resp.AudienceGroups
 		}
 
 		format := cmdutil.GetFormat(cmd)
 		if format == "json" || format == "yaml" {
-			return output.New(format).Format(os.Stdout, resp.AudienceGroups)
+			return output.New(format).Format(os.Stdout, allGroups)
 		}
 
-		rows := make([]model.AudienceGroupRow, len(resp.AudienceGroups))
-		for i, g := range resp.AudienceGroups {
+		rows := make([]model.AudienceGroupRow, len(allGroups))
+		for i, g := range allGroups {
 			rows[i] = model.AudienceGroupRow{
 				AudienceGroupID: g.AudienceGroupID,
 				Type:            g.Type,

@@ -31,9 +31,13 @@ func (a *AudienceAPI) Get(audienceGroupID int64) (*model.AudienceGroup, error) {
 	return &resp.AudienceGroup, nil
 }
 
-func (a *AudienceAPI) List() (*model.AudienceGroupsResponse, error) {
+func (a *AudienceAPI) List(page int) (*model.AudienceGroupsResponse, error) {
+	endpoint := a.Client.BaseURL + "/v2/bot/audienceGroup/list"
+	if page > 0 {
+		endpoint += fmt.Sprintf("?page=%d", page)
+	}
 	var resp model.AudienceGroupsResponse
-	if err := a.Client.Get(a.Client.BaseURL+"/v2/bot/audienceGroup/list", &resp); err != nil {
+	if err := a.Client.Get(endpoint, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

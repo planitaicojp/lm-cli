@@ -21,6 +21,7 @@ var Cmd = &cobra.Command{
 func init() {
 	followersCmd.Flags().Int("limit", 0, "maximum number of follower IDs to return")
 	followersCmd.Flags().String("start", "", "continuation token for pagination")
+	followersCmd.Flags().Bool("all", false, "fetch all followers with auto-pagination")
 	Cmd.AddCommand(profileCmd)
 	Cmd.AddCommand(followersCmd)
 }
@@ -65,10 +66,43 @@ var followersCmd = &cobra.Command{
 			return err
 		}
 
+		allFlag, _ := cmd.Flags().GetBool("all")
 		limit, _ := cmd.Flags().GetInt("limit")
 		start, _ := cmd.Flags().GetString("start")
 
 		userAPI := &api.UserAPI{Client: client}
+
+		if allFlag {
+			var allIDs []string
+			cursor := start
+			for {
+				resp, err := userAPI.GetFollowers(0, cursor)
+				if err != nil {
+					return err
+				}
+				allIDs = append(allIDs, resp.UserIDs...)
+				if resp.Next == "" {
+					break
+				}
+				cursor = resp.Next
+				if !cmdutil.IsQuiet(cmd) {
+					fmt.Fprintf(os.Stderr, "Fetched %d followers...\r", len(allIDs))
+				}
+			}
+			if !cmdutil.IsQuiet(cmd) {
+				fmt.Fprintln(os.Stderr)
+			}
+
+			format := cmdutil.GetFormat(cmd)
+			if format == "json" || format == "yaml" {
+				return output.New(format).Format(os.Stdout, &model.FollowerIDsResponse{UserIDs: allIDs})
+			}
+			for _, id := range allIDs {
+				fmt.Fprintln(os.Stdout, id)
+			}
+			return nil
+		}
+
 		resp, err := userAPI.GetFollowers(limit, start)
 		if err != nil {
 			return err
