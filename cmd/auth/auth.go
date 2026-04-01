@@ -21,12 +21,13 @@ var Cmd = &cobra.Command{
 }
 
 func init() {
-	loginCmd.Flags().StringP("type", "t", "longterm", "token type: longterm, stateless")
+	loginCmd.Flags().StringP("type", "t", "longterm", "token type: longterm, stateless, v2")
 	Cmd.AddCommand(loginCmd)
 	Cmd.AddCommand(logoutCmd)
 	Cmd.AddCommand(statusCmd)
 	Cmd.AddCommand(listCmd)
 	Cmd.AddCommand(switchCmd)
+	tokenCmd.Flags().Bool("check", false, "exit 0 if token is valid, exit 2 if not (no output)")
 	Cmd.AddCommand(tokenCmd)
 	Cmd.AddCommand(removeCmd)
 }
@@ -48,10 +49,12 @@ var loginCmd = &cobra.Command{
 			return loginLongterm(profileName, cfg)
 		case "stateless":
 			return loginStateless(profileName, cfg)
+		case "v2":
+			return loginV2(profileName, cfg)
 		default:
 			return &lmerrors.ValidationError{
 				Field:   "type",
-				Message: fmt.Sprintf("unknown token type %q (use: longterm, stateless)", tokenType),
+				Message: fmt.Sprintf("unknown token type %q (use: longterm, stateless, v2)", tokenType),
 			}
 		}
 	},
@@ -173,6 +176,77 @@ func loginStateless(profileName string, cfg *config.Config) error {
 
 	jst := time.FixedZone("JST", 9*60*60)
 	fmt.Fprintf(os.Stderr, "Logged in to profile %q (token expires %s / %s JST)\n",
+		profileName,
+		expiresAt.Format(time.RFC3339),
+		expiresAt.In(jst).Format("2006-01-02 15:04"))
+	verifyToken(token)
+	return nil
+}
+
+func loginV2(profileName string, cfg *config.Config) error {
+	var err error
+
+	channelID := config.EnvOr(config.EnvChannelID, "")
+	if channelID == "" {
+		channelID, err = prompt.String("Channel ID")
+		if err != nil {
+			return err
+		}
+	}
+
+	privateKeyFile, err := prompt.String("Private Key file path")
+	if err != nil {
+		return err
+	}
+
+	// Issue token immediately to verify credentials
+	fmt.Fprintln(os.Stderr, "Issuing v2 token via JWT assertion...")
+	token, expiresAt, err := api.IssueV2Token(channelID, privateKeyFile)
+	if err != nil {
+		return err
+	}
+
+	// Save profile
+	if cfg.Profiles == nil {
+		cfg.Profiles = map[string]config.Profile{}
+	}
+	cfg.Profiles[profileName] = config.Profile{
+		ChannelID: channelID,
+		TokenType: "v2",
+	}
+	if cfg.ActiveProfile == "" {
+		cfg.ActiveProfile = profileName
+	}
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+
+	// Save credentials (private key path)
+	creds, err := config.LoadCredentials()
+	if err != nil {
+		return err
+	}
+	creds.Set(profileName, config.Credentials{PrivateKeyFile: privateKeyFile})
+	if err := creds.Save(); err != nil {
+		return fmt.Errorf("saving credentials: %w", err)
+	}
+
+	// Save token
+	tokens, err := config.LoadTokens()
+	if err != nil {
+		return err
+	}
+	tokens.Set(profileName, config.TokenEntry{
+		Token:     token,
+		ExpiresAt: expiresAt,
+		TokenType: "v2",
+	})
+	if err := tokens.Save(); err != nil {
+		return fmt.Errorf("saving token: %w", err)
+	}
+
+	jst := time.FixedZone("JST", 9*60*60)
+	fmt.Fprintf(os.Stderr, "Logged in to profile %q with v2 token (expires %s / %s JST)\n",
 		profileName,
 		expiresAt.Format(time.RFC3339),
 		expiresAt.In(jst).Format("2006-01-02 15:04"))
@@ -326,7 +400,19 @@ var tokenCmd = &cobra.Command{
 	Use:   "token",
 	Short: "Print current token to stdout (for scripting)",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		check, _ := cmd.Flags().GetBool("check")
 		profileName := getProfileFlag(cmd)
+
+		if check {
+			tokens, err := config.LoadTokens()
+			if err != nil {
+				return &lmerrors.AuthError{Message: "cannot load tokens"}
+			}
+			if tokens.IsValid(profileName) {
+				return nil
+			}
+			return &lmerrors.AuthError{Message: "token is not valid"}
+		}
 
 		cfg, err := config.Load()
 		if err != nil {

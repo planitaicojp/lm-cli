@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -21,6 +22,7 @@ func init() {
 	Cmd.AddCommand(getCmd)
 	Cmd.AddCommand(setCmd)
 	Cmd.AddCommand(listCmd)
+	Cmd.AddCommand(validateCmd)
 }
 
 var getCmd = &cobra.Command{
@@ -84,6 +86,76 @@ var setCmd = &cobra.Command{
 		}
 
 		return cfg.Save()
+	},
+}
+
+var validateCmd = &cobra.Command{
+	Use:   "validate",
+	Short: "Validate configuration files",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		hasError := false
+
+		// config.yaml
+		cfg, err := config.Load()
+		if err != nil {
+			fmt.Printf("config.yaml:        error: %v\n", err)
+			hasError = true
+		} else {
+			profileCount := len(cfg.Profiles)
+			if profileCount == 0 {
+				fmt.Printf("config.yaml:        ok (no profiles)\n")
+			} else {
+				fmt.Printf("config.yaml:        ok (%d profile(s))\n", profileCount)
+			}
+		}
+
+		// credentials.yaml
+		_, err = config.LoadCredentials()
+		if err != nil {
+			fmt.Printf("credentials.yaml:   error: %v\n", err)
+			hasError = true
+		} else {
+			fmt.Printf("credentials.yaml:   ok\n")
+		}
+
+		// tokens.yaml
+		tokens, err := config.LoadTokens()
+		if err != nil {
+			fmt.Printf("tokens.yaml:        error: %v\n", err)
+			hasError = true
+		} else {
+			if len(tokens.Profiles) == 0 {
+				fmt.Printf("tokens.yaml:        ok (no tokens)\n")
+			} else {
+				var statuses []string
+				for name, entry := range tokens.Profiles {
+					if entry.Token == "" {
+						statuses = append(statuses, name+": empty")
+					} else if entry.TokenType == "longterm" || entry.ExpiresAt.IsZero() {
+						statuses = append(statuses, name+": valid")
+					} else if time.Until(entry.ExpiresAt) > 0 {
+						statuses = append(statuses, name+": valid")
+					} else {
+						statuses = append(statuses, name+": expired")
+					}
+				}
+				fmt.Printf("tokens.yaml:        ok (%s)\n", strings.Join(statuses, ", "))
+			}
+		}
+
+		// Active profile
+		if cfg != nil {
+			if cfg.ActiveProfile != "" {
+				fmt.Printf("Active profile:     %s\n", cfg.ActiveProfile)
+			} else {
+				fmt.Printf("Active profile:     (none)\n")
+			}
+		}
+
+		if hasError {
+			return &lmerrors.ConfigError{Message: "configuration validation failed"}
+		}
+		return nil
 	},
 }
 
