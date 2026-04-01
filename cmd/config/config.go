@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -21,6 +24,7 @@ func init() {
 	Cmd.AddCommand(getCmd)
 	Cmd.AddCommand(setCmd)
 	Cmd.AddCommand(listCmd)
+	Cmd.AddCommand(validateCmd)
 }
 
 var getCmd = &cobra.Command{
@@ -84,6 +88,82 @@ var setCmd = &cobra.Command{
 		}
 
 		return cfg.Save()
+	},
+}
+
+var validateCmd = &cobra.Command{
+	Use:   "validate",
+	Short: "Validate configuration files",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		hasError := false
+
+		// config.yaml
+		cfg, err := config.Load()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "config.yaml:        error: %v\n", err)
+			hasError = true
+		} else {
+			profileCount := len(cfg.Profiles)
+			if profileCount == 0 {
+				fmt.Fprintf(os.Stderr, "config.yaml:        ok (no profiles)\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "config.yaml:        ok (%d profile(s))\n", profileCount)
+			}
+		}
+
+		// credentials.yaml
+		_, err = config.LoadCredentials()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "credentials.yaml:   error: %v\n", err)
+			hasError = true
+		} else {
+			fmt.Fprintf(os.Stderr, "credentials.yaml:   ok\n")
+		}
+
+		// tokens.yaml
+		tokens, err := config.LoadTokens()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "tokens.yaml:        error: %v\n", err)
+			hasError = true
+		} else {
+			if len(tokens.Profiles) == 0 {
+				fmt.Fprintf(os.Stderr, "tokens.yaml:        ok (no tokens)\n")
+			} else {
+				names := make([]string, 0, len(tokens.Profiles))
+				for name := range tokens.Profiles {
+					names = append(names, name)
+				}
+				sort.Strings(names)
+				var statuses []string
+				for _, name := range names {
+					entry := tokens.Profiles[name]
+					if entry.Token == "" {
+						statuses = append(statuses, name+": empty")
+					} else if entry.TokenType == "longterm" || entry.ExpiresAt.IsZero() {
+						statuses = append(statuses, name+": valid")
+					} else if time.Until(entry.ExpiresAt) > 0 {
+						statuses = append(statuses, name+": valid")
+					} else {
+						statuses = append(statuses, name+": expired")
+					}
+				}
+				fmt.Fprintf(os.Stderr, "tokens.yaml:        ok (%s)\n", strings.Join(statuses, ", "))
+			}
+		}
+
+		// Active profile
+		if cfg != nil {
+			if cfg.ActiveProfile != "" {
+				fmt.Fprintf(os.Stderr, "Active profile:     %s\n", cfg.ActiveProfile)
+			} else {
+				fmt.Fprintf(os.Stderr, "Active profile:     (none)\n")
+			}
+		}
+
+		if hasError {
+			return &lmerrors.ConfigError{Message: "configuration validation failed"}
+		}
+		return nil
 	},
 }
 
