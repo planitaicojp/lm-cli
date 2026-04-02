@@ -74,8 +74,11 @@ func Password(label string) (string, error) {
 
 // Confirm asks for yes/no confirmation.
 func Confirm(label string) (bool, error) {
+	if config.IsYes() {
+		return true, nil
+	}
 	if config.IsNoInput() {
-		return false, fmt.Errorf("confirmation required but --no-input is set")
+		return false, fmt.Errorf("confirmation required but --no-input is set; use LM_YES=1 to auto-confirm")
 	}
 	fmt.Fprintf(os.Stderr, "%s [y/N]: ", label)
 	reader := bufio.NewReader(os.Stdin)
