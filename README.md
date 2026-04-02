@@ -1,7 +1,7 @@
 # lm — LINE Messaging API CLI
 
 [![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go)](https://go.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 LINE Messaging API をコマンドラインから操作するための CLI ツールです。
 Bot 開発・DevOps 通知・マーケティング配信をスクリプトや CI/CD から手軽に実行できます。
@@ -253,4 +253,4 @@ make install   # $GOPATH/bin/lm にインストール
 
 ## ライセンス
 
-MIT
+Apache License 2.0 — 詳細は [LICENSE](LICENSE) を参照してください。
