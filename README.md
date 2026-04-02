@@ -10,17 +10,29 @@ Bot 開発・DevOps 通知・マーケティング配信をスクリプトや CI
 
 ## インストール
 
+### macOS (Homebrew)
+
 ```bash
-# ソースからビルド
-git clone https://github.com/t-kim-planitai/lm-cli.git
+brew install planitaicojp/tap/lm
+```
+
+### Windows (Scoop)
+
+```powershell
+scoop bucket add planitaicojp https://github.com/planitaicojp/bucket
+scoop install lm
+```
+
+### ソースからビルド
+
+```bash
+git clone https://github.com/planitaicojp/lm-cli.git
 cd lm-cli
 make install        # $GOPATH/bin/lm にインストール
 
 # または手元でビルドするだけ
 make build          # ./lm
 ```
-
-> **Note:** Go モジュールパスは `github.com/crowdy/lm-cli` です。
 
 ---
 
