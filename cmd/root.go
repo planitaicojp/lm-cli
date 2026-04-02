@@ -17,6 +17,7 @@ import (
 	"github.com/crowdy/lm-cli/cmd/richmenu"
 	"github.com/crowdy/lm-cli/cmd/status"
 	"github.com/crowdy/lm-cli/cmd/user"
+	"github.com/crowdy/lm-cli/cmd/skill"
 	"github.com/crowdy/lm-cli/cmd/webhook"
 	"github.com/crowdy/lm-cli/internal/api"
 	"github.com/crowdy/lm-cli/internal/config"
@@ -74,6 +75,7 @@ func init() {
 	rootCmd.AddCommand(insight.Cmd)
 	rootCmd.AddCommand(content.Cmd)
 	rootCmd.AddCommand(status.Cmd)
+	rootCmd.AddCommand(skill.Cmd)
 }
 
 // Execute runs the root command.
