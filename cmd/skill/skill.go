@@ -47,6 +47,10 @@ func runInstall(baseDir string) error {
 		return &lmerrors.ValidationError{Message: "already installed, use 'lm skill update'"}
 	}
 
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create skill directory: %w", err)
+	}
+
 	cmd := exec.Command("git", "clone", skillRepo, skillDir)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
