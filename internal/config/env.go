@@ -13,6 +13,7 @@ const (
 	EnvNoInput   = "LM_NO_INPUT"
 	EnvEndpoint  = "LM_ENDPOINT"
 	EnvDebug     = "LM_DEBUG"
+	EnvYes       = "LM_YES"
 )
 
 // EnvOr returns the environment variable value if set, otherwise the fallback.
@@ -21,6 +22,12 @@ func EnvOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// IsYes returns true if auto-confirm mode is requested.
+func IsYes() bool {
+	v := os.Getenv(EnvYes)
+	return v == "1" || v == "true"
 }
 
 // IsNoInput returns true if non-interactive mode is requested.
