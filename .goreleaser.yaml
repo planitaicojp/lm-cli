@@ -19,6 +19,24 @@ archives:
       - goos: windows
         format: zip
 
+brews:
+  - repository:
+      owner: planitaicojp
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://planitaicojp.github.io/lm-cli-pages/"
+    description: "CLI tool for LINE Messaging API"
+    license: "Apache-2.0"
+
+scoops:
+  - repository:
+      owner: planitaicojp
+      name: bucket
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://planitaicojp.github.io/lm-cli-pages/"
+    description: "CLI tool for LINE Messaging API"
+    license: "Apache-2.0"
+
 checksum:
   name_template: "checksums.txt"
 
